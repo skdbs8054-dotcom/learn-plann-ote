@@ -1,0 +1,28 @@
+{
+  "name": "humanize-writer",
+  "version": "1.0.0",
+  "description": "AI 초안을 자연스러운 사람 글투로 다듬어 주는 웹 앱",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skdbs8054-dotcom/learn-plann-ote.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/skdbs8054-dotcom/learn-plann-ote/issues"
+  },
+  "homepage": "https://github.com/skdbs8054-dotcom/learn-plann-ote#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  }
+}

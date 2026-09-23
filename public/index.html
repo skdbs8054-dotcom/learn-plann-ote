@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>자연스러운 글 다듬기</title>
+  <style>
+    :root {
+      --bg: #f7f6f3; --panel: #ffffff; --text: #1f1f1f; --muted: #6b6b6b;
+      --border: #e2e0da; --accent: #c2410c; --accent-text: #ffffff; --warn: #b45309;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #171716; --panel: #22211f; --text: #ecebe8; --muted: #a3a19c;
+        --border: #3a3935; --accent: #fb923c; --accent-text: #1a1a1a; --warn: #fbbf24; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.6 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 20px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+    select, input[type=text] { font: inherit; color: var(--text); background: var(--panel);
+      border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+    input[type=text] { min-width: 240px; }
+    button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 10px 18px;
+      background: var(--accent); color: var(--accent-text); cursor: pointer; }
+    button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    button:disabled { opacity: .5; cursor: progress; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } input[type=text] { min-width: 0; width: 100%; } }
+    .pane { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      display: flex; flex-direction: column; min-height: 420px; }
+    .pane header { display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; }
+    textarea { flex: 1; border: 0; resize: vertical; padding: 14px; font: inherit; color: var(--text);
+      background: transparent; min-height: 360px; }
+    textarea:focus { outline: none; }
+    .stats { padding: 10px 14px; border-top: 1px solid var(--border); font-size: .85rem; color: var(--muted); }
+    .stats b { color: var(--text); }
+    .cliche { color: var(--warn); }
+    .note { margin-top: 20px; font-size: .85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>자연스러운 글 다듬기</h1>
+  <p class="sub">AI가 쓴 듯한 딱딱한 초안을 사람이 쓴 것 같은 자연스러운 글로 고쳐 드립니다.</p>
+
+  <div class="controls">
+    <label>글투
+      <select id="tone">
+        <option value="natural">자연스러운 일상체</option>
+        <option value="blog">블로그</option>
+        <option value="formal">업무·보고서</option>
+        <option value="academic">학술</option>
+      </select>
+    </label>
+    <label>수정 강도
+      <select id="strength">
+        <option value="light">가볍게</option>
+        <option value="medium" selected>보통</option>
+        <option value="strong">과감하게</option>
+      </select>
+    </label>
+    <label>추가 요청 (선택)
+      <input id="notes" type="text" placeholder="예: 1인칭으로, 반말로, 더 짧게">
+    </label>
+    <button id="run">다듬기</button>
+  </div>
+
+  <div class="grid">
+    <section class="pane">
+      <header>원문</header>
+      <textarea id="input" placeholder="다듬을 글을 붙여넣으세요."></textarea>
+      <div class="stats" id="inputStats">글을 입력하면 문체 분석이 표시됩니다.</div>
+    </section>
+    <section class="pane">
+      <header>결과 <button class="secondary" id="copy" type="button">복사</button></header>
+      <textarea id="output" placeholder="결과가 여기에 표시됩니다."></textarea>
+      <div class="stats" id="outputStats"></div>
+    </section>
+  </div>
+
+  <p class="note">문체 분석은 문장 길이의 다양성과 상투어 사용을 보여주는 글쓰기 참고 지표입니다. 어떤 AI 탐지기의 결과도 보장하지 않으며, 과제·시험 등 AI 사용 규정이 있는 곳에서는 그 규정을 따르세요.</p>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let timer;
+
+  async function renderStats(text, el) {
+    if (!text.trim()) { el.textContent = ""; return; }
+    const res = await fetch("/api/analyze", { method: "POST", body: JSON.stringify({ text }) });
+    const s = await res.json();
+    const variation = s.lengthVariation < 0.3 ? "단조로움" : s.lengthVariation < 0.5 ? "보통" : "다양함";
+    const cliches = s.cliches.length
+      ? `<span class="cliche">상투어: ${s.cliches.map((c) => `${escapeHtml(c.phrase)}×${c.count}`).join(", ")}</span>`
+      : "상투어 없음";
+    el.innerHTML = `${s.chars.toLocaleString()}자 · 문장 <b>${s.sentences}</b>개 · 평균 <b>${s.avgSentenceLength}</b>자 · ` +
+      `문장 길이 변화 <b>${s.lengthVariation}</b> (${variation}) · ${cliches}`;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  $("input").addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => renderStats($("input").value, $("inputStats")), 400);
+  });
+
+  $("run").addEventListener("click", async () => {
+    const text = $("input").value;
+    if (!text.trim()) return;
+    $("run").disabled = true;
+    $("output").value = "";
+    $("outputStats").textContent = "작성 중…";
+    try {
+      const res = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, tone: $("tone").value, strength: $("strength").value, notes: $("notes").value }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        $("outputStats").textContent = error;
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        $("output").value += decoder.decode(value, { stream: true });
+      }
+      await renderStats($("output").value, $("outputStats"));
+    } catch {
+      $("outputStats").textContent = "서버에 연결할 수 없습니다.";
+    } finally {
+      $("run").disabled = false;
+    }
+  });
+
+  $("copy").addEventListener("click", () => navigator.clipboard.writeText($("output").value));
+</script>
+</body>
+</html>
