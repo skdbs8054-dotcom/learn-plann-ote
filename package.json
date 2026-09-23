@@ -1,7 +1,7 @@
 {
-  "name": "humanize-writer",
+  "name": "korean-natural-writer",
   "version": "1.0.0",
-  "description": "AI 초안을 자연스러운 사람 글투로 다듬어 주는 웹 앱",
+  "description": "내 실제 한국어 문체에 맞춰 글을 다듬는 개인화 글쓰기 편집기",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -19,7 +19,8 @@
   },
   "homepage": "https://github.com/skdbs8054-dotcom/learn-plann-ote#readme",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.128.0"
+    "@anthropic-ai/sdk": "^0.128.0",
+    "docx": "^9.7.1"
   },
   "type": "module",
   "engines": {
