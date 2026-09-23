@@ -2,14 +2,15 @@
 
 import {
   state, PURPOSES, TONES, LEVELS, PURPOSE_PRESETS, CUSTOM_STYLE_EXAMPLES, INSTRUCTION_EXAMPLES,
-  esc, toast, download, safeFilename, postJson, saveCurrent, upsertDoc, uid, fmtDate, isSaved,
+  esc, toast, safeFilename, saveCurrent, upsertDoc, uid, fmtDate, isSaved,
 } from "./state.js";
+import * as api from "./api.js";
 import { analyzeText, analyzePatterns, ENDING_TYPES } from "./korean.js";
 import { styleMatch, compareWithProfile, profileForPrompt, styleExcerpts } from "./profile.js";
 import { extractFacts, mergeFacts, checkFacts } from "./facts.js";
 import { diffWords, diffText, sideSegments, diffSummary } from "./diff.js";
 import { assembleRevised } from "./assemble.js";
-import { levelBadge, bars, list, openModal, closeModal } from "./ui.js";
+import { levelBadge, bars, list, openModal, closeModal, confirmDialog } from "./ui.js";
 
 const EXAMPLE_TEXT = `현대 사회에서 독서는 매우 중요한 역할을 합니다. 또한 이러한 독서 습관은 학생들의 학습 효율성 향상을 통한 성과 개선에 기여합니다. 따라서 학교에서는 다양한 독서 프로그램이 운영되고 있습니다.
 
@@ -165,7 +166,7 @@ function renderSettings() {
           <input type="radio" name="level" value="${k}" ${Number(k) === d.level ? "checked" : ""} ${disabled ? "disabled" : ""}>
           <span><b>${k}. ${v.name}</b><i>${v.desc}</i></span></label>`;
       }).join("")}</div>
-      ${hasProfile ? "" : `<span class="hint">Level 4는 <a href="#/mystyle">내 문체</a>에서 프로필을 만든 뒤 사용할 수 있습니다.</span>`}
+      ${hasProfile ? "" : `<span class="hint">Level 4는 <a href="#mystyle">내 문체</a>에서 프로필을 만든 뒤 사용할 수 있습니다.</span>`}
     </fieldset>
     <div class="field">
       <div class="toggle">
@@ -176,7 +177,7 @@ function renderSettings() {
     </div>
     <div class="field">
       <span>내 표현 설정</span>
-      <span class="hint">자주 쓰는 표현 ${s.personalDictionary.length}개 · 피할 표현 ${s.avoidWords.length}개 · 보존 단어 ${s.preserveWords.length}개 — <a href="#/settings">설정에서 편집</a></span>
+      <span class="hint">자주 쓰는 표현 ${s.personalDictionary.length}개 · 피할 표현 ${s.avoidWords.length}개 · 보존 단어 ${s.preserveWords.length}개 — <a href="#settings">설정에서 편집</a></span>
     </div>
     <div class="field">
       <label class="field" for="instructions">Custom Instructions · 추가 지시</label>
@@ -361,7 +362,7 @@ export function koreanAnalysisHtml(a) {
 function styleMatchHtml(a) {
   const profile = state.profile;
   if (!profile) {
-    return `<div class="notice">아직 Writing Profile이 없습니다. <a href="#/mystyle">내 문체</a>에서 직접 쓴 글을 3개 이상(권장 5~20개) 등록하고 프로필을 만들면, 이 글이 평소 문체와 얼마나 비슷한지 보여 드립니다.</div>`;
+    return `<div class="notice">아직 Writing Profile이 없습니다. <a href="#mystyle">내 문체</a>에서 직접 쓴 글을 3개 이상(권장 5~20개) 등록하고 프로필을 만들면, 이 글이 평소 문체와 얼마나 비슷한지 보여 드립니다.</div>`;
   }
   const m = styleMatch(a, profile);
   const other = state.draft && state.analysisTarget === "revised" ? styleMatch(analyze(state.doc.original), profile) : null;
@@ -473,7 +474,7 @@ async function onClick(e) {
   const i = Number(el.dataset.index);
   switch (el.dataset.action) {
     case "example":
-      if (state.doc.original.trim() && !confirm("현재 원문을 예시 글로 바꿀까요?")) return;
+      if (state.doc.original.trim() && !(await confirmDialog("현재 원문을 예시 글로 바꿀까요?", { ok: "바꾸기" }))) return;
       state.doc.original = EXAMPLE_TEXT;
       root.querySelector("#original").value = EXAMPLE_TEXT;
       onInput({ target: root.querySelector("#original") });
@@ -522,7 +523,7 @@ async function onClick(e) {
     case "compare": return openCompare();
     case "save-version": return saveVersion();
     case "download-txt":
-      download(`${safeFilename(state.doc.title || "수정본")}.txt`, new Blob([state.draft.text], { type: "text/plain;charset=utf-8" }));
+      await api.saveFile(`${safeFilename(state.doc.title || "수정본")}.txt`, new Blob([state.draft.text], { type: "text/plain;charset=utf-8" })).catch((err) => toast(err.message));
       break;
     case "download-docx": return downloadDocx();
     case "clear":
@@ -610,7 +611,8 @@ async function rewrite() {
   const hadDraft = Boolean(state.draft);
   if (!hadDraft) renderRevised();
   try {
-    const res = await postJson("/api/rewrite", { text: d.original, ...requestSettings() });
+    if (d.original.length > api.MAX_INPUT_CHARS) throw new Error(`글은 ${api.MAX_INPUT_CHARS.toLocaleString()}자 이하로 입력하세요. 나눠서 다듬어 주세요.`);
+    const res = await api.rewrite({ text: d.original, ...requestSettings() });
     pushUndo();
     const factsDetected = (res.factsDetected ?? []).filter((f) => f.value && d.original.includes(f.value));
     state.draft = { id: uid(), text: res.revisedText, sentences: res.sentences, summary: res.summary, factsDetected };
@@ -638,7 +640,7 @@ async function loadAlternatives(i) {
   renderDetail();
   try {
     const context = (from, to) => sentences.slice(from, to).map((x) => x.revised).join(" ");
-    const res = await postJson("/api/alternatives", {
+    const res = await api.alternatives({
       sentence: s.original,
       before: context(Math.max(0, i - 2), i),
       after: context(i + 1, i + 3),
@@ -692,13 +694,8 @@ function saveVersion() {
 
 async function downloadDocx() {
   try {
-    const res = await fetch("/api/docx", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: state.doc.title || "수정본", text: state.draft.text }),
-    });
-    if (!res.ok) throw new Error("DOCX 파일을 만들지 못했습니다.");
-    download(`${safeFilename(state.doc.title || "수정본")}.docx`, await res.blob());
+    const blob = await api.docxBlob(state.doc.title || "수정본", state.draft.text);
+    await api.saveFile(`${safeFilename(state.doc.title || "수정본")}.docx`, blob);
   } catch (err) {
     toast(err.message);
   }

@@ -7,7 +7,7 @@ import {
 import { getConsent, setConsent, remove } from "./store.js";
 import { analyzeText, topEntries, ENDING_TYPES } from "./korean.js";
 import { MIN_SAMPLES, styleMatch, compareWithProfile } from "./profile.js";
-import { tile, bars, list, chipEditor } from "./ui.js";
+import { tile, bars, list, chipEditor, confirmDialog } from "./ui.js";
 
 const DISCLAIMER = "AI 탐지 결과는 서비스, 모델, 글의 길이 및 언어에 따라 달라질 수 있습니다. 하나의 결과만으로 작성자를 확정할 수 없습니다.";
 
@@ -51,7 +51,7 @@ export function renderDashboard(el) {
         ${tile("Average Style Match", avgMatch == null ? "-" : avgMatch, avgMatch == null ? "" : "%")}
         ${tile("Average Sentence Length", avgLen || "-", avgLen ? "자" : "")}
       </div>
-      ${avgMatch == null ? `<p class="muted small" style="margin:0">Average Style Match는 <a href="#/mystyle">내 문체</a> 프로필을 만든 뒤 계산됩니다. 이 값은 AI 탐지 확률이 아니라 내 글과의 문체 유사도입니다.</p>` : ""}
+      ${avgMatch == null ? `<p class="muted small" style="margin:0">Average Style Match는 <a href="#mystyle">내 문체</a> 프로필을 만든 뒤 계산됩니다. 이 값은 AI 탐지 확률이 아니라 내 글과의 문체 유사도입니다.</p>` : ""}
       <div class="two">
         <section class="card"><div class="card-head"><h2>Top Repeated Expressions</h2></div><div class="card-body">
           ${repeated.size ? bars(topEntries(repeated, 8).map((e) => ({ label: e.key, value: e.count, display: `${e.count}회` }))) : `<p class="muted small">문서를 작성하면 반복 표현이 집계됩니다.</p>`}
@@ -60,9 +60,9 @@ export function renderDashboard(el) {
           ${endings.size ? bars(topEntries(endings, 8).map((e) => ({ label: `~${e.key}`, value: Math.round((e.count / endingTotal) * 100) }))) : `<p class="muted small">문서를 작성하면 종결 표현이 집계됩니다.</p>`}
         </div></section>
       </div>
-      <section class="card"><div class="card-head"><h2>최근 문서</h2><a class="btn btn-sm" href="#/history">전체 기록</a></div><div class="card-body">
+      <section class="card"><div class="card-head"><h2>최근 문서</h2><a class="btn btn-sm" href="#history">전체 기록</a></div><div class="card-body">
         ${docs.length ? `<ul class="list-plain">${docs.slice(0, 5).map((d) => `<li><span>${esc(d.title || defaultTitle(d.original))} <span class="muted small">· ${esc(PURPOSES[d.purpose] ?? "")} · 버전 ${d.versions.length}개</span></span>
-          <button class="btn btn-sm" data-action="open-doc" data-id="${d.id}">열기</button></li>`).join("")}</ul>` : `<p class="muted small">아직 문서가 없습니다. <a href="#/">새 문서</a>에서 시작해 보세요.</p>`}
+          <button class="btn btn-sm" data-action="open-doc" data-id="${d.id}">열기</button></li>`).join("")}</ul>` : `<p class="muted small">아직 문서가 없습니다. <a href="#">새 문서</a>에서 시작해 보세요.</p>`}
       </div></section>
     </div>`;
   el.onclick = pageClick;
@@ -218,7 +218,7 @@ export function renderReference(el) {
       <div class="notice notice-info"><b>${DISCLAIMER}</b><br>
         이 앱은 외부 서비스를 호출하지 않으며, 기록한 수치는 참고 데이터로만 저장됩니다. 탐지 수치를 낮추는 방향으로 글을 자동 수정하는 기능은 제공하지 않습니다.</div>
       <div class="services">${DETECTORS.map((d) => `<div class="service"><h3>${esc(d.name)}</h3><a href="${d.url}" target="_blank" rel="noopener noreferrer" class="small">서비스 열기 ↗</a></div>`).join("")}</div>
-      ${doc ? detectorFormHtml(doc, docs) : `<section class="card"><div class="card-body"><div class="empty">기록할 문서가 없습니다. <a href="#/">새 문서</a>에서 글을 작성하세요.</div></div></section>`}
+      ${doc ? detectorFormHtml(doc, docs) : `<section class="card"><div class="card-body"><div class="empty">기록할 문서가 없습니다. <a href="#">새 문서</a>에서 글을 작성하세요.</div></div></section>`}
       ${doc ? detectorHistoryHtml(doc) : ""}
     </div>`;
   el.onclick = pageClick;
@@ -386,7 +386,7 @@ export function renderSettingsPage(el) {
 
 // ---------- Shared click handler ----------
 
-function pageClick(e) {
+async function pageClick(e) {
   const el = e.target.closest("[data-action]");
   if (!el) return;
   const rerender = () => window.dispatchEvent(new Event("hashchange"));
@@ -395,17 +395,17 @@ function pageClick(e) {
       const doc = state.docs.find((d) => d.id === el.dataset.id) ?? (state.doc.id === el.dataset.id ? state.doc : null);
       if (!doc) return;
       openDoc(doc);
-      location.hash = "#/";
+      location.hash = "#";
       break;
     }
     case "delete-doc":
-      if (!confirm("이 문서와 버전, 탐지 결과 기록을 삭제할까요?")) return;
+      if (!(await confirmDialog("이 문서와 버전, 탐지 결과 기록을 삭제할까요?", { ok: "삭제", danger: true }))) return;
       state.docs = state.docs.filter((d) => d.id !== el.dataset.id);
       saveDocs();
       rerender();
       break;
     case "clear-history":
-      if (!confirm("저장된 모든 문서 기록을 삭제할까요? 되돌릴 수 없습니다.")) return;
+      if (!(await confirmDialog("저장된 모든 문서 기록을 삭제할까요? 되돌릴 수 없습니다.", { ok: "삭제", danger: true }))) return;
       state.docs = [];
       saveDocs();
       toast("기록을 모두 삭제했습니다.");
@@ -422,14 +422,14 @@ function pageClick(e) {
       rerender();
       break;
     case "delete-samples":
-      if (!confirm("등록한 글 샘플을 모두 삭제할까요? 프로필은 따로 삭제해야 합니다.")) return;
+      if (!(await confirmDialog("등록한 글 샘플을 모두 삭제할까요? 프로필은 따로 삭제해야 합니다.", { ok: "삭제", danger: true }))) return;
       state.samples = [];
       saveSamples();
       toast("샘플을 삭제했습니다.");
       rerender();
       break;
     case "delete-profile":
-      if (!confirm("Writing Profile을 삭제할까요?")) return;
+      if (!(await confirmDialog("Writing Profile을 삭제할까요?", { ok: "삭제", danger: true }))) return;
       state.profile = null;
       saveProfile();
       if (state.doc.level === 4) state.doc.level = 2;
@@ -437,7 +437,7 @@ function pageClick(e) {
       rerender();
       break;
     case "delete-all":
-      if (!confirm("문서, 샘플, 프로필, 설정, 작업 중인 글을 모두 삭제할까요?")) return;
+      if (!(await confirmDialog("문서, 샘플, 프로필, 설정, 작업 중인 글을 모두 삭제할까요?", { ok: "삭제", danger: true }))) return;
       for (const k of ["docs", "samples", "profile", "settings", "current"]) remove(k);
       state.docs = [];
       state.samples = [];

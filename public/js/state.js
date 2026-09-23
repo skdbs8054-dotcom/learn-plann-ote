@@ -199,14 +199,3 @@ export function download(filename, blob) {
 export function safeFilename(name) {
   return (name || "document").replace(/[\\/:*?"<>|\n]+/g, " ").trim().slice(0, 60) || "document";
 }
-
-export async function postJson(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `요청에 실패했습니다 (${res.status}).`);
-  return data;
-}

@@ -2,7 +2,7 @@ import { state, loadAll, newDoc, isSaved, saveCurrent } from "./state.js";
 import { getConsent, setConsent } from "./store.js";
 import { renderWorkspace } from "./workspace.js";
 import { renderDashboard, renderMyStyle, renderReference, renderHistory, renderSettingsPage } from "./pages.js";
-import { openModal, closeModal } from "./ui.js";
+import { openModal, closeModal, confirmDialog } from "./ui.js";
 
 const VIEWS = {
   "": renderWorkspace,
@@ -30,9 +30,9 @@ function route() {
   document.title = `${TITLES[state.view]} · Korean Natural Writer`;
 }
 
-function startNewDoc() {
+async function startNewDoc() {
   const unsaved = state.doc.original.trim() && (!isSaved() || (state.draft && !state.doc.versions.some((v) => v.text === state.draft.text)));
-  if (unsaved && !confirm("새 문서를 시작할까요? 저장하지 않은 결과는 사라집니다.")) return;
+  if (unsaved && !(await confirmDialog("새 문서를 시작할까요? 저장하지 않은 결과는 사라집니다.", { ok: "새 문서" }))) return;
   state.doc = newDoc();
   state.draft = null;
   state.undo = [];
@@ -42,7 +42,7 @@ function startNewDoc() {
   state.revisedMode = "view";
   state.analysisTarget = "original";
   saveCurrent();
-  if (location.hash && location.hash !== "#/") location.hash = "#/";
+  if (location.hash && location.hash !== "#") location.hash = "#";
   else route();
 }
 

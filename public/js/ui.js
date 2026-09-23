@@ -50,6 +50,26 @@ export function openModal(html, { small = false } = {}) {
   root.querySelector(".modal button, .modal select, .modal input")?.focus();
 }
 
+// In-page replacement for window.confirm(), which sandboxed viewers ignore.
+export function confirmDialog(message, { ok = "확인", danger = false } = {}) {
+  return new Promise((resolve) => {
+    openModal(`<div class="modal-body stack">
+      <p style="margin:0">${esc(message)}</p>
+      <div class="actions" style="justify-content:flex-end">
+        <button class="btn" type="button" data-confirm="no">취소</button>
+        <button class="btn ${danger ? "btn-danger" : "btn-primary"}" type="button" data-confirm="yes">${esc(ok)}</button>
+      </div></div>`, { small: true });
+    const root = document.getElementById("modal-root");
+    root.querySelector('[data-confirm="yes"]').focus();
+    const done = (value) => { root.onclick = null; closeModal(); resolve(value); };
+    root.onclick = (e) => {
+      const b = e.target.closest("[data-confirm]");
+      if (b) done(b.dataset.confirm === "yes");
+      else if (e.target.classList.contains("modal-backdrop")) done(false);
+    };
+  });
+}
+
 export function closeModal() {
   document.getElementById("modal-root").innerHTML = "";
 }

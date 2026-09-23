@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "build:artifact": "node scripts/build-artifact.mjs"
   },
   "repository": {
     "type": "git",
@@ -25,5 +26,8 @@
   "type": "module",
   "engines": {
     "node": ">=22.9"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
