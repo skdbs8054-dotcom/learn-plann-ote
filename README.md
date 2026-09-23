@@ -10,7 +10,7 @@ AI 탐지기를 우회하거나 탐지 점수를 낮추는 것은 목표가 아�
 
 ```bash
 npm install
-export ANTHROPIC_API_KEY=sk-ant-...   # 또는 `ant auth login`
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env   # 또는 export ANTHROPIC_API_KEY=... (.env는 git에 올라가지 않음)
 npm start                             # http://localhost:3000
 ```
 

@@ -4,7 +4,7 @@
   "description": "내 실제 한국어 문체에 맞춰 글을 다듬는 개인화 글쓰기 편집기",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node --env-file-if-exists=.env server.js",
     "test": "node --test"
   },
   "repository": {
@@ -24,6 +24,6 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.9"
   }
 }
